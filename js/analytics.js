@@ -13,6 +13,7 @@ export const EVENTS = {
   FINANCES_COMPLETED: 'finances_completed',
   RESULT_VIEWED: 'result_viewed',
   WHATIF_USED: 'whatif_used',
+  WHATIF_ADJUSTED: 'whatif_adjusted',
   PLAN_PRESET_CLICKED: 'plan_preset_clicked',
   RESULT_SHARED: 'result_shared',
   RETENTION_INTENT_SUBMITTED: 'retention_intent_submitted',

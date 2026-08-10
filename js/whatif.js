@@ -55,14 +55,22 @@ let baseSurplus = 0;
 
 // whatif_used fires once per session, on the first slider/preset move. adjustmentCount keeps
 // counting on every move after that, even though only the first move sends the event.
+// whatif_adjusted fires once per burst of adjustments, 800ms after the last one in the burst.
+const WHATIF_ADJUSTED_DEBOUNCE_MS = 800;
 let whatifAdjustmentCount = 0;
 let whatifUsedFired = false;
+let whatifAdjustedTimer = null;
 function recordAdjustment() {
   whatifAdjustmentCount += 1;
   if (!whatifUsedFired) {
     whatifUsedFired = true;
     track(EVENTS.WHATIF_USED, { adjustmentCount: whatifAdjustmentCount });
   }
+
+  clearTimeout(whatifAdjustedTimer);
+  whatifAdjustedTimer = setTimeout(() => {
+    track(EVENTS.WHATIF_ADJUSTED, { adjustmentCount: whatifAdjustmentCount });
+  }, WHATIF_ADJUSTED_DEBOUNCE_MS);
 }
 
 function adjustedInputs() {
