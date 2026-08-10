@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goal Planner — Find out when you can afford it</title>
+<meta name="description" content="Tell us your goal. We'll estimate your date — and show you how to move it closer.">
+
+<!-- og:url is a placeholder — replace with the real deployed URL. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://goalplanner.app/">
+<meta property="og:title" content="Goal Planner — Find out when you can actually afford it">
+<meta property="og:description" content="Tell us your goal. We'll estimate your date — and show you how to move it closer.">
+<meta property="og:image" content="assets/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Goal Planner — Find out when you can actually afford it">
+<meta name="twitter:description" content="Tell us your goal. We'll estimate your date — and show you how to move it closer.">
+<meta name="twitter:image" content="assets/og-image.png">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Step 0: Landing -->
+  <section id="step-0" class="step is-active" data-step="0">
+    <div class="landing">
+      <h1>Find out when you can actually afford it.</h1>
+      <p class="sub-line">Tell us your goal. We'll estimate your date — and show you how to move it closer.</p>
+      <button type="button" class="btn btn-primary" id="start-btn">Start</button>
+    </div>
+  </section>
+
+  <!-- Step 1: Goal -->
+  <section id="step-1" class="step" data-step="1">
+    <button type="button" class="btn-back" data-back>&larr; Back</button>
+    <h2>What do you want?</h2>
+
+    <label for="goal-name">Goal</label>
+    <input type="text" id="goal-name" placeholder="e.g. A new car" autocomplete="off">
+
+    <div class="chip-row" id="preset-chips">
+      <button type="button" class="chip" data-preset="Car" data-cost="800000">Car</button>
+      <button type="button" class="chip" data-preset="Bike" data-cost="80000">Bike</button>
+      <button type="button" class="chip" data-preset="Trip" data-cost="150000">Trip</button>
+      <button type="button" class="chip" data-preset="Wedding" data-cost="1500000">Wedding</button>
+      <button type="button" class="chip" data-preset="House down payment" data-cost="1000000">House down payment</button>
+      <button type="button" class="chip" data-preset="" data-cost="">Custom</button>
+    </div>
+
+    <label for="goal-cost">Estimated cost</label>
+    <div class="input-prefix">
+      <span class="prefix">₹</span>
+      <input type="number" id="goal-cost" inputmode="numeric" min="0" placeholder="0">
+    </div>
+
+    <p class="field-error" id="goal-error" hidden></p>
+
+    <button type="button" class="btn btn-primary" id="to-step-2">Next</button>
+  </section>
+
+  <!-- Step 2: Finances -->
+  <section id="step-2" class="step" data-step="2">
+    <button type="button" class="btn-back" data-back>&larr; Back</button>
+    <h2>Your finances</h2>
+
+    <label for="current-savings">Saved so far</label>
+    <div class="input-prefix">
+      <span class="prefix">₹</span>
+      <input type="number" id="current-savings" inputmode="numeric" min="0" placeholder="0">
+    </div>
+
+    <label for="monthly-income">Monthly take-home income</label>
+    <div class="input-prefix">
+      <span class="prefix">₹</span>
+      <input type="number" id="monthly-income" inputmode="numeric" min="0" placeholder="0">
+    </div>
+
+    <label for="monthly-expenses">Monthly expenses</label>
+    <div class="input-prefix">
+      <span class="prefix">₹</span>
+      <input type="number" id="monthly-expenses" inputmode="numeric" min="0" placeholder="0">
+    </div>
+    <p class="helper-text">
+      Not sure? A common starting point is 70% of income
+      <button type="button" class="btn-link" id="fill-70">Use 70%</button>
+    </p>
+
+    <details class="target-date-section" id="target-date-details">
+      <summary>I have a target date</summary>
+      <div class="target-date-fields">
+        <label for="target-month">Month</label>
+        <select id="target-month">
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+
+        <label for="target-year">Year</label>
+        <input type="number" id="target-year" inputmode="numeric" placeholder="2027">
+      </div>
+    </details>
+
+    <p class="field-error" id="finances-error" hidden></p>
+
+    <button type="button" class="btn btn-primary" id="to-step-3">See my date</button>
+  </section>
+
+  <!-- Step 3: Reveal -->
+  <section id="step-3" class="step" data-step="3">
+    <button type="button" class="btn-back" data-back>&larr; Back</button>
+    <h2 class="sr-only">Your result</h2>
+
+    <div class="reveal">
+      <div aria-live="polite">
+        <p class="reveal-eyebrow" id="reveal-eyebrow">At your current pace</p>
+        <p class="reveal-headline" id="reveal-headline">—</p>
+        <p class="reveal-subline" id="reveal-subline" hidden></p>
+
+        <p class="reveal-unreachable-msg" id="reveal-unreachable-msg" hidden>Move the sliders to see what would make this possible.</p>
+
+        <p class="reveal-gap-sentence" id="reveal-gap-sentence"></p>
+      </div>
+
+      <div class="whatif-sliders">
+        <div class="slider-group">
+          <label for="savings-slider">Monthly savings <span class="slider-value" id="savings-slider-value"></span></label>
+          <input type="range" id="savings-slider" min="0" max="0" step="500" value="0">
+        </div>
+
+        <div class="slider-group">
+          <label for="goal-slider">Goal amount <span class="slider-value" id="goal-slider-value"></span></label>
+          <input type="range" id="goal-slider" min="-30" max="30" step="1" value="0">
+        </div>
+      </div>
+
+      <div class="preset-row" id="preset-row">
+        <button type="button" class="preset-btn" data-preset="current">Current</button>
+        <button type="button" class="preset-btn" data-preset="faster">Faster</button>
+        <button type="button" class="preset-btn" data-preset="aggressive">Aggressive</button>
+      </div>
+
+      <div class="share-row">
+        <button type="button" class="btn btn-secondary" id="share-btn">Share this result</button>
+      </div>
+
+      <p class="disclaimer">Estimates based on the numbers you entered. Not financial advice.</p>
+
+      <div class="retention-card" id="retention-card">
+        <div class="retention-prompt" id="retention-prompt">
+          <p class="retention-question">Want a monthly update on this date?</p>
+          <form class="retention-form" id="retention-form">
+            <input type="email" id="retention-email" placeholder="you@example.com" required aria-label="Email address">
+            <button type="submit" class="btn-retention" id="retention-submit">Yes</button>
+          </form>
+        </div>
+        <p class="retention-thankyou" id="retention-thankyou" hidden>Thanks — we'll keep you posted.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="app-footer">
+    <a href="privacy.html">Privacy</a>
+  </footer>
+
+  <!-- Share card panel -->
+  <div class="share-panel" id="share-panel" hidden>
+    <div class="share-panel-inner">
+      <img id="share-card-preview" class="share-card-preview" alt="Shareable result card">
+      <div class="share-panel-actions">
+        <a id="share-whatsapp-link" class="btn btn-primary" target="_blank" rel="noopener">Share on WhatsApp</a>
+        <button type="button" class="btn btn-secondary" id="share-copy-link-btn">Copy link</button>
+        <a id="share-download-link" class="btn btn-secondary" download="goal-planner-result.png">Download PNG</a>
+        <button type="button" class="btn-link" id="share-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
