@@ -3,16 +3,12 @@
 // Fail-closed: the client only ever receives { ok: true, data } or { ok: false, reason }.
 // Raw LLM text never reaches the client under any path.
 
+const { CATEGORIES, SCHEMA_KEYS, parseAndValidateExtraction } = require('./parse-validation');
+
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const MAX_TEXT_LENGTH = 300;
 const TIMEOUT_MS = 6000;
-
-const CATEGORIES = ['car', 'bike', 'travel', 'wedding', 'home', 'education', 'electronics', 'custom'];
-const MIN_AMOUNT = 0;
-const MAX_AMOUNT = 100000000;
-const MIN_MONTHS = 1;
-const MAX_MONTHS = 600;
 
 // The user's text is placed between the START/END markers below, never concatenated into
 // this instruction text. The model is told explicitly to treat that block as data, not commands.
@@ -40,14 +36,8 @@ const RESPONSE_SCHEMA = {
     monthly_expenses_inr: { type: 'NUMBER', nullable: true },
     timeline_months: { type: 'NUMBER', nullable: true },
   },
-  required: [
-    'category', 'brand', 'model', 'variant', 'city',
-    'target_amount_inr', 'current_savings_inr', 'monthly_income_inr',
-    'monthly_expenses_inr', 'timeline_months',
-  ],
+  required: SCHEMA_KEYS,
 };
-
-const ALLOWED_KEYS = new Set(RESPONSE_SCHEMA.required);
 
 const RATE_LIMIT_PER_MINUTE = 10;
 const RATE_LIMIT_PER_DAY = 60;
@@ -136,54 +126,6 @@ function checkAndReserveDailyCall(now) {
 
   dailyCallState.count += 1;
   return true;
-}
-
-function isNullableString(value) {
-  return value === null || typeof value === 'string';
-}
-
-function isNullableAmount(value) {
-  if (value === null) return true;
-  return typeof value === 'number' && Number.isFinite(value) && value >= MIN_AMOUNT && value <= MAX_AMOUNT;
-}
-
-function isNullableMonths(value) {
-  if (value === null) return true;
-  return typeof value === 'number' && Number.isInteger(value) && value >= MIN_MONTHS && value <= MAX_MONTHS;
-}
-
-// Validates the model's parsed JSON against the extraction contract and rebuilds a clean
-// object from known fields only — fails closed (returns null) on any deviation: unknown
-// keys, wrong types, out-of-range values. Never passes the candidate object through as-is.
-function validateExtraction(candidate) {
-  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
-
-  const keys = Object.keys(candidate);
-  if (keys.length !== ALLOWED_KEYS.size || keys.some((key) => !ALLOWED_KEYS.has(key))) return null;
-
-  if (!CATEGORIES.includes(candidate.category)) return null;
-  if (!isNullableString(candidate.brand)) return null;
-  if (!isNullableString(candidate.model)) return null;
-  if (!isNullableString(candidate.variant)) return null;
-  if (!isNullableString(candidate.city)) return null;
-  if (!isNullableAmount(candidate.target_amount_inr)) return null;
-  if (!isNullableAmount(candidate.current_savings_inr)) return null;
-  if (!isNullableAmount(candidate.monthly_income_inr)) return null;
-  if (!isNullableAmount(candidate.monthly_expenses_inr)) return null;
-  if (!isNullableMonths(candidate.timeline_months)) return null;
-
-  return {
-    category: candidate.category,
-    brand: candidate.brand,
-    model: candidate.model,
-    variant: candidate.variant,
-    city: candidate.city,
-    target_amount_inr: candidate.target_amount_inr,
-    current_savings_inr: candidate.current_savings_inr,
-    monthly_income_inr: candidate.monthly_income_inr,
-    monthly_expenses_inr: candidate.monthly_expenses_inr,
-    timeline_months: candidate.timeline_months,
-  };
 }
 
 function fail(res, status, reason) {
@@ -287,17 +229,9 @@ module.exports = async function handler(req, res) {
     return fail(res, 502, 'validation');
   }
 
-  let candidate;
-  try {
-    candidate = JSON.parse(rawText);
-  } catch (err) {
-    console.error('parse-goal: model output was not parseable JSON');
-    return fail(res, 200, 'validation');
-  }
-
-  const validated = validateExtraction(candidate);
+  const validated = parseAndValidateExtraction(rawText);
   if (!validated) {
-    console.error('parse-goal: model output failed schema validation');
+    console.error('parse-goal: model output failed to parse or validate');
     return fail(res, 200, 'validation');
   }
 
