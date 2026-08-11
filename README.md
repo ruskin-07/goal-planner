@@ -38,6 +38,19 @@ not the test — don't edit the expected values.
    project root — there's nothing to build, `index.html` is already at the root.
 4. Deploy. Every subsequent push to the connected branch auto-deploys.
 
+## Environment variables
+
+`api/parse-goal.js` (Vercel serverless function, B1 goal parsing — off by default behind a
+feature flag) requires:
+
+```
+LLM_API_KEY   Gemini API key, used server-side only in api/parse-goal.js
+```
+
+Set this in the Vercel dashboard (Project → Settings → Environment Variables) for Production
+and Preview. It is read only via `process.env.LLM_API_KEY` inside the serverless function —
+never sent to the browser, never committed to the repo.
+
 ## Analytics setup
 
 `js/analytics.js` has a `POSTHOG_CONFIG` object at the top with empty `apiKey`/`apiHost` fields.
