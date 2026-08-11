@@ -34,29 +34,42 @@
   <!-- Step 1: Goal -->
   <section id="step-1" class="step" data-step="1">
     <button type="button" class="btn-back" data-back>&larr; Back</button>
-    <h2>What do you want?</h2>
 
-    <label for="goal-name">Goal</label>
-    <input type="text" id="goal-name" placeholder="e.g. A new car" autocomplete="off">
-
-    <div class="chip-row" id="preset-chips">
-      <button type="button" class="chip" data-preset="Car" data-cost="800000">Car</button>
-      <button type="button" class="chip" data-preset="Bike" data-cost="80000">Bike</button>
-      <button type="button" class="chip" data-preset="Trip" data-cost="150000">Trip</button>
-      <button type="button" class="chip" data-preset="Wedding" data-cost="1500000">Wedding</button>
-      <button type="button" class="chip" data-preset="House down payment" data-cost="1000000">House down payment</button>
-      <button type="button" class="chip" data-preset="" data-cost="">Custom</button>
+    <!-- AI free-text goal entry (V1/B1) — shown only when PARSE_ENABLED is true -->
+    <div class="ai-goal-entry" id="ai-goal-entry" hidden>
+      <h2>Tell us your goal</h2>
+      <label for="ai-goal-text">What do you want?</label>
+      <textarea id="ai-goal-text" maxlength="300" rows="3" placeholder="e.g. I want to buy a bike in about 2 years"></textarea>
+      <p class="field-error" id="ai-goal-error" hidden></p>
+      <button type="button" class="btn btn-primary" id="ai-parse-btn">Continue</button>
+      <button type="button" class="btn-link" id="ai-manual-link">Enter details manually</button>
     </div>
 
-    <label for="goal-cost">Estimated cost</label>
-    <div class="input-prefix">
-      <span class="prefix">₹</span>
-      <input type="number" id="goal-cost" inputmode="numeric" min="0" placeholder="0">
+    <div id="manual-goal-fields">
+      <h2>What do you want?</h2>
+
+      <label for="goal-name">Goal</label>
+      <input type="text" id="goal-name" placeholder="e.g. A new car" autocomplete="off">
+
+      <div class="chip-row" id="preset-chips">
+        <button type="button" class="chip" data-preset="Car" data-cost="800000">Car</button>
+        <button type="button" class="chip" data-preset="Bike" data-cost="80000">Bike</button>
+        <button type="button" class="chip" data-preset="Trip" data-cost="150000">Trip</button>
+        <button type="button" class="chip" data-preset="Wedding" data-cost="1500000">Wedding</button>
+        <button type="button" class="chip" data-preset="House down payment" data-cost="1000000">House down payment</button>
+        <button type="button" class="chip" data-preset="" data-cost="">Custom</button>
+      </div>
+
+      <label for="goal-cost">Estimated cost</label>
+      <div class="input-prefix">
+        <span class="prefix">₹</span>
+        <input type="number" id="goal-cost" inputmode="numeric" min="0" placeholder="0">
+      </div>
+
+      <p class="field-error" id="goal-error" hidden></p>
+
+      <button type="button" class="btn btn-primary" id="to-step-2">Next</button>
     </div>
-
-    <p class="field-error" id="goal-error" hidden></p>
-
-    <button type="button" class="btn btn-primary" id="to-step-2">Next</button>
   </section>
 
   <!-- Step 2: Finances -->

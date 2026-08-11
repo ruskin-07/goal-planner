@@ -4,6 +4,7 @@
 import { initReveal } from './whatif.js';
 import { decodeStateFromURL, initShare } from './share.js';
 import { track, identifyUser, EVENTS } from './analytics.js';
+import { PARSE_ENABLED } from './config.js';
 
 const state = {
   step: 0,
@@ -36,6 +37,13 @@ const goalNameInput = document.getElementById('goal-name');
 const goalCostInput = document.getElementById('goal-cost');
 const goalError = document.getElementById('goal-error');
 const presetChips = document.getElementById('preset-chips');
+
+const aiGoalEntry = document.getElementById('ai-goal-entry');
+const manualGoalFields = document.getElementById('manual-goal-fields');
+const aiGoalTextInput = document.getElementById('ai-goal-text');
+const aiGoalError = document.getElementById('ai-goal-error');
+const aiParseBtn = document.getElementById('ai-parse-btn');
+const aiManualLink = document.getElementById('ai-manual-link');
 
 const currentSavingsInput = document.getElementById('current-savings');
 const monthlyIncomeInput = document.getElementById('monthly-income');
@@ -96,6 +104,151 @@ function buildRevealInputs() {
   };
 }
 
+// AI free-text goal entry (V1/B1) — pre-fills the same manual fields/state below; never
+// skips a step, never auto-advances. The user always reviews/edits via the existing form.
+
+const CATEGORY_LABELS = {
+  car: 'Car',
+  bike: 'Bike',
+  travel: 'Trip',
+  wedding: 'Wedding',
+  home: 'Home',
+  education: 'Education',
+  electronics: 'Electronics',
+  custom: 'Custom',
+};
+
+function buildGoalNameFromParse(data) {
+  const parts = [data.brand, data.model, data.variant].filter(Boolean);
+  if (parts.length) return parts.join(' ');
+  return CATEGORY_LABELS[data.category] || 'Custom';
+}
+
+// Fields the last successful parse pre-filled, and which of them the user has since
+// changed. Feeds parse_edited — null until a parse succeeds, since editing untouched
+// manual fields is not "correcting the AI".
+let aiPrefilledFields = null;
+let aiEditedFields = new Set();
+
+function markFieldEdited(fieldKey) {
+  if (aiPrefilledFields && aiPrefilledFields.has(fieldKey)) {
+    aiEditedFields.add(fieldKey);
+  }
+}
+
+function applyParsedGoal(data) {
+  aiPrefilledFields = new Set(['goalName']);
+  aiEditedFields = new Set();
+
+  const goalName = buildGoalNameFromParse(data);
+  state.goalName = goalName;
+  state.goalType = CATEGORY_LABELS[data.category] || 'Custom';
+  goalNameInput.value = goalName;
+
+  if (isPositiveNumber(data.target_amount_inr)) {
+    state.goalCost = data.target_amount_inr;
+    goalCostInput.value = data.target_amount_inr;
+    aiPrefilledFields.add('goalCost');
+  }
+  if (isNonNegativeNumber(data.current_savings_inr)) {
+    state.currentSavings = data.current_savings_inr;
+    currentSavingsInput.value = data.current_savings_inr;
+    aiPrefilledFields.add('currentSavings');
+  }
+  if (isPositiveNumber(data.monthly_income_inr)) {
+    state.monthlyIncome = data.monthly_income_inr;
+    monthlyIncomeInput.value = data.monthly_income_inr;
+    aiPrefilledFields.add('monthlyIncome');
+  }
+  if (isNonNegativeNumber(data.monthly_expenses_inr)) {
+    state.monthlyExpenses = data.monthly_expenses_inr;
+    monthlyExpensesInput.value = data.monthly_expenses_inr;
+    aiPrefilledFields.add('monthlyExpenses');
+  }
+  if (Number.isInteger(data.timeline_months) && data.timeline_months > 0) {
+    const target = new Date();
+    target.setMonth(target.getMonth() + data.timeline_months);
+    state.hasTargetDate = true;
+    state.targetMonth = target.getMonth() + 1;
+    state.targetYear = target.getFullYear();
+    targetDateDetails.open = true;
+    targetMonthSelect.value = String(state.targetMonth);
+    targetYearInput.value = String(state.targetYear);
+    aiPrefilledFields.add('targetDate');
+  }
+}
+
+function showAiEntry() {
+  aiGoalEntry.hidden = false;
+  manualGoalFields.hidden = true;
+}
+
+function showManualFields() {
+  aiGoalEntry.hidden = true;
+  manualGoalFields.hidden = false;
+}
+
+if (PARSE_ENABLED) {
+  showAiEntry();
+}
+
+aiManualLink.addEventListener('click', () => {
+  track(EVENTS.MANUAL_FALLBACK_USED, { reason: 'user_choice' });
+  showManualFields();
+});
+
+aiParseBtn.addEventListener('click', async () => {
+  hideError(aiGoalError);
+
+  const text = aiGoalTextInput.value.trim();
+  if (!text) {
+    showError(aiGoalError, 'Tell us what you want first.');
+    return;
+  }
+
+  track(EVENTS.PARSE_ATTEMPTED, { text_length: text.length });
+
+  aiParseBtn.disabled = true;
+  const originalLabel = aiParseBtn.textContent;
+  aiParseBtn.textContent = 'Thinking…';
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+
+  let data = null;
+  let failureReason = 'error';
+  try {
+    const response = await fetch('/api/parse-goal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: controller.signal,
+    });
+    const json = await response.json();
+    if (json && json.ok) {
+      data = json.data;
+    } else {
+      failureReason = (json && json.reason) || 'error';
+    }
+  } catch (err) {
+    failureReason = err.name === 'AbortError' ? 'timeout' : 'error';
+  } finally {
+    clearTimeout(timer);
+    aiParseBtn.disabled = false;
+    aiParseBtn.textContent = originalLabel;
+  }
+
+  if (data) {
+    const fieldsFilledCount = Object.values(data).filter((value) => value !== null).length;
+    track(EVENTS.PARSE_SUCCEEDED, { category: data.category, fields_filled_count: fieldsFilledCount });
+    applyParsedGoal(data);
+  } else {
+    track(EVENTS.PARSE_FAILED, { reason: failureReason });
+    track(EVENTS.MANUAL_FALLBACK_USED, { reason: failureReason === 'rate_limit' ? 'rate_limit' : 'api_fail' });
+  }
+  showManualFields();
+});
+
 // Step 1: goal + cost
 
 startBtn.addEventListener('click', () => goToStep(1));
@@ -111,15 +264,22 @@ presetChips.addEventListener('click', (event) => {
   state.goalCost = chip.dataset.cost ? Number(chip.dataset.cost) : null;
   if (!chip.dataset.preset) goalNameInput.focus();
 });
+presetChips.addEventListener('click', (event) => {
+  if (!event.target.closest('.chip')) return;
+  markFieldEdited('goalName');
+  markFieldEdited('goalCost');
+});
 
 goalNameInput.addEventListener('input', () => {
   fireGoalStarted();
   state.goalName = goalNameInput.value.trim();
 });
+goalNameInput.addEventListener('input', () => markFieldEdited('goalName'));
 
 goalCostInput.addEventListener('input', () => {
   state.goalCost = goalCostInput.value === '' ? null : Number(goalCostInput.value);
 });
+goalCostInput.addEventListener('input', () => markFieldEdited('goalCost'));
 
 toStep2Btn.addEventListener('click', () => {
   hideError(goalError);
@@ -142,14 +302,17 @@ toStep2Btn.addEventListener('click', () => {
 currentSavingsInput.addEventListener('input', () => {
   state.currentSavings = currentSavingsInput.value === '' ? null : Number(currentSavingsInput.value);
 });
+currentSavingsInput.addEventListener('input', () => markFieldEdited('currentSavings'));
 
 monthlyIncomeInput.addEventListener('input', () => {
   state.monthlyIncome = monthlyIncomeInput.value === '' ? null : Number(monthlyIncomeInput.value);
 });
+monthlyIncomeInput.addEventListener('input', () => markFieldEdited('monthlyIncome'));
 
 monthlyExpensesInput.addEventListener('input', () => {
   state.monthlyExpenses = monthlyExpensesInput.value === '' ? null : Number(monthlyExpensesInput.value);
 });
+monthlyExpensesInput.addEventListener('input', () => markFieldEdited('monthlyExpenses'));
 
 fill70Btn.addEventListener('click', () => {
   if (!isPositiveNumber(state.monthlyIncome)) return;
@@ -157,6 +320,7 @@ fill70Btn.addEventListener('click', () => {
   monthlyExpensesInput.value = suggested;
   state.monthlyExpenses = suggested;
 });
+fill70Btn.addEventListener('click', () => markFieldEdited('monthlyExpenses'));
 
 targetDateDetails.addEventListener('toggle', () => {
   state.hasTargetDate = targetDateDetails.open;
@@ -165,10 +329,12 @@ targetDateDetails.addEventListener('toggle', () => {
 targetMonthSelect.addEventListener('change', () => {
   state.targetMonth = Number(targetMonthSelect.value);
 });
+targetMonthSelect.addEventListener('change', () => markFieldEdited('targetDate'));
 
 targetYearInput.addEventListener('input', () => {
   state.targetYear = targetYearInput.value === '' ? null : Number(targetYearInput.value);
 });
+targetYearInput.addEventListener('input', () => markFieldEdited('targetDate'));
 
 toStep3Btn.addEventListener('click', () => {
   hideError(financesError);
@@ -202,6 +368,9 @@ toStep3Btn.addEventListener('click', () => {
   }
 
   track(EVENTS.FINANCES_COMPLETED);
+  if (aiPrefilledFields && aiEditedFields.size > 0) {
+    track(EVENTS.PARSE_EDITED, { fields_edited_count: aiEditedFields.size });
+  }
   goToStep(3);
 
   const inputs = buildRevealInputs();

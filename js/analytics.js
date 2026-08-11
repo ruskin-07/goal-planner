@@ -17,6 +17,11 @@ export const EVENTS = {
   PLAN_PRESET_CLICKED: 'plan_preset_clicked',
   RESULT_SHARED: 'result_shared',
   RETENTION_INTENT_SUBMITTED: 'retention_intent_submitted',
+  PARSE_ATTEMPTED: 'parse_attempted',
+  PARSE_SUCCEEDED: 'parse_succeeded',
+  PARSE_FAILED: 'parse_failed',
+  PARSE_EDITED: 'parse_edited',
+  MANUAL_FALLBACK_USED: 'manual_fallback_used',
 };
 
 // Loaded lazily, and only once a real key is pasted above — nothing fires against
